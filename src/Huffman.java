@@ -162,18 +162,35 @@ public class Huffman
         String[][] codes = new String[letters.length][2];
         codes = codeLetters(root,"",letters,codes);
 
-        /*
+
         //print codes[][]
-        for (int i=0; i<letters.length; i++)
+        for (int i=0; i<codes.length; i++)
             System.out.println(codes[i][0]+":   "+codes[i][1]);
-        */
+
 
         //parse the codes to reconstruct the uncomData
         String uncompData="";
-        
+        String Buffer = "";
+        for(int j=0; j<comData.length(); j++){
+            char tmp = comData.charAt(j);
+            boolean found = false;
+            for (int i=0; i<codes.length; i++){
+                if ((Buffer + tmp).equals(codes[i][1])){
+                    uncompData += codes[i][0];
+                    Buffer = "";
+                    found = true;
+                    break;
+                }
+            }
+            if (!found){
+                Buffer += tmp;
+            }
+        }
+        if (!Buffer.equals("")){
+            System.out.println("error");
+        }
 
-
-
+        writeToFile(uncompData,targetDir);
     }
 
     static int[][] initLettersAndProps(String s)
