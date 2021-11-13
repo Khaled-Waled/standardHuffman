@@ -50,10 +50,10 @@ public class Huffman
 
         /*
         //print codes[][] content
-
         for (int i=0; i<letters.length; i++)
             System.out.println(codes[i][0]+":   "+codes[i][1]);
-        */
+         */
+
 
         String comData="";
 
@@ -71,54 +71,106 @@ public class Huffman
         }
 
 
+        int maxLen=0;
+        for (int i=0; i<letters.length; i++)
+            maxLen= Math.max(maxLen,letters[i][1]);
+        maxLen = log2(maxLen);
 
-        /*
+        int numOfUniqueLetters= letters.length;
+
         //build header
-        int mxLen=1;
-        for (int i=0; i<codes.length; i++)
-            mxLen = Math.max(mxLen, codes[i][1].length());
+        String occurrencesHeader="";
+        for (int i=0; i<numOfUniqueLetters; i++)
+            occurrencesHeader+=toBin(letters[i][0],7)+toBin(letters[i][1],maxLen); //add letters and their occurrences
 
-        String header = "";
-        for (int i=0; i<codes.length; i++)
-            header+=(toBin(codes[i][0].charAt(0),7)+toBin(Integer.parseInt(codes[i][1],2),mxLen));
+        comData = occurrencesHeader + comData;
 
 
-        comData+=header;
-        //Write to file
         int extraLen= 8-(comData.length()%8);
         if (extraLen==8)
             extraLen=0;
 
         comData = binaryStringToBits(comData,extraLen);
-        comData = String.valueOf((byte) extraLen) + comData;
-        //comData = String.valueOf((byte) mxLen) + comData;
-        //comData = String.valueOf((byte) codes.length) + comData;
-        */
+
+
+        comData = String.valueOf ((byte) numOfUniqueLetters) +comData;
+        comData = String.valueOf ((byte) maxLen) +comData;
+        comData = String.valueOf ((byte) extraLen) +comData;
+
+
+
 
         writeToFile(comData,targetDir);
     }
 
     public static void decompress(String sourceDir, String targetDir)
     {
-        /*
+        //get the data form the file
         String comData = fileToString(sourceDir);
         //extract header
         int extraLen = comData.charAt(0) - '0';
         comData = comData.substring(1);
 
-        int mxLen = comData.charAt(0) - '0';
+        int maxLen = comData.charAt(0) - '0';
         comData = comData.substring(1);
-        int codesLen = comData.charAt(0) - '0';
+        int numOfUniqueLetters = comData.charAt(0) - '0';
         comData = comData.substring(1);
 
-        int[][] codes = new int[codesLen][2];
+        comData = bitsToBinaryString(comData,extraLen);
 
-        String header = comData.substring(0,1+(7+mxLen)*codesLen);
 
-        String nHeader="";
+        //rebuild the letters 2D array
+        String occurrencesHeader = comData.substring(0,(7+maxLen)*numOfUniqueLetters);
+        comData = comData.substring((7+maxLen)*numOfUniqueLetters);
+        int [][] letters = new int[numOfUniqueLetters][2];
+
+        for (int i=0; i<letters.length;i++)
+        {
+            int l= Integer.parseInt(occurrencesHeader.substring(i*(7+maxLen), i*(7+maxLen)+7),2);
+            int n= Integer.parseInt(occurrencesHeader.substring( i*(7+maxLen)+7, i*(7+maxLen)+7+maxLen),2);
+
+            letters[i][0]= l;
+            letters[i][1]= n;
+        }
+        /*
+        //print letters[][]
+        for (int i=0; i<letters.length; i++)
+            System.out.println((char) letters[i][0]+ "  "+ letters[i][1]);
+         */
+
+        //reconstruct Codes[][]
+        PriorityQueue<Node> queue = new PriorityQueue<Node>(letters.length,new Node.NodeComparator());
+        for (int i=0; i<letters.length; i++)
+            queue.add(new Node((char) letters[i][0],letters[i][1]));
+        Node root = null;
+        //take 2 items and add combination of them              0
+        //move the Queue to a BST                              / \
+        //                                                    C   0
+        //                                                       / \
+        //                                                      C   0
+        while (queue.size()>1)
+        {
+            Node n1 = queue.poll();
+            Node n2 = queue.poll();
+
+            Node n0 = new Node((char) 0, n1.prob+ n2.prob);
+            n0.left=  n2;
+            n0.right= n1;
+            queue.add(n0);
+            root = n0;
+        }
+        String[][] codes = new String[letters.length][2];
+        codes = codeLetters(root,"",letters,codes);
+
+        /*
+        //print codes[][]
+        for (int i=0; i<letters.length; i++)
+            System.out.println(codes[i][0]+":   "+codes[i][1]);
         */
 
-
+        //parse the codes to reconstruct the uncomData
+        String uncompData="";
+        
 
 
 
@@ -224,6 +276,39 @@ public class Huffman
         }
         return dir;
     }
+    protected static String binaryStringToBits(String s,int extraLen){
+
+        //complete the string to multiple of 8
+        for (int i=0; i<extraLen;i++)
+            s+='0';
+
+        //Pack into bytes
+        byte[] arr=new byte[s.length()/8];
+
+        for (int i=0; i<=s.length()-8; i+=8)
+        {
+            arr[i/8] = (byte) Integer.parseInt(s.substring(i,i+8),2);
+        }
+        String res ="";
+        for (int i=0; i< arr.length; i++)
+        {
+            int c = arr[i];
+            if (c<0) c = c & 0xFF;
+            res += (char) c;
+        }
+        return res;
+    }
+    protected static String bitsToBinaryString(String s,int extraLen){
+
+        String result ="";
+        for (int i=0; i<s.length(); i++)
+        {
+            result+=toBin(s.charAt(i),8);
+        }
+        result = result.substring(0,result.length()-extraLen);
+        return result;
+
+    }
 
     protected static String toBin (int x, int numOfBits)  {
         if (x<0) x*= -1;
@@ -231,6 +316,10 @@ public class Huffman
         while (res.length()<numOfBits)
             res = "0"+res;
         return res;
+    }
+    protected static int log2(int x)
+    {
+        return (int) Math.ceil(Math.log(x) / Math.log(2));
     }
 
 }
